@@ -17,8 +17,7 @@ def car_null_hypoth():
     >>> set(car_null_hypoth()) <= set(range(1,11))
     True
     """
-    return ...
-
+    return [3,6]
 
 def car_alt_hypoth():
     """
@@ -28,8 +27,7 @@ def car_alt_hypoth():
     >>> set(car_alt_hypoth()) <= set(range(1,11))
     True
     """
-    return ...
-
+    return [2,5]
 
 def car_test_stat():
     """
@@ -39,7 +37,7 @@ def car_test_stat():
     >>> set(car_test_stat()) <= set(range(1,5))
     True
     """
-    return ...
+    return [2,4]
 
 
 def car_p_value():
@@ -50,7 +48,7 @@ def car_p_value():
     >>> car_p_value() in [1,2,3,4,5]
     True
     """
-    return ...
+    return 3
 
 
 # ---------------------------------------------------------------------
@@ -66,7 +64,14 @@ def clean_apps(df):
     True
     '''
     
-    return ...
+    #df['Size'] = df['Size'].str.slice(0,-1)
+    df['Size'] = df['Size'].apply(lambda x: int(float(x[:-1])) * 1000 if x[-1] == 'M' else int(float(x[:-1])))
+    df['Installs'] = df['Installs'].str.replace(',','').str.slice(0,-1).astype(int)
+    df['Type'] = df['Type'].replace({'Free':1, 'Paid':0})
+    df['Price'] = df['Price'].str.strip('$').astype(float)
+    df['Last Updated'] = df['Last Updated'].str.split(',').str[1].str.strip()
+    
+    return df
 
 
 def store_info(cleaned):
@@ -81,8 +86,33 @@ def store_info(cleaned):
     True
     '''
 
-
-    return ...
+    # find years where over 100 apps were made
+    app_count_df = cleaned.groupby('Last Updated').aggregate(np.count_nonzero)
+    above_100_years = app_count_df.loc[app_count_df.App >= 100].index
+    # group by year, take median of all cols, sort in descending order of median installations
+    q1_df = cleaned[cleaned['Last Updated'].isin(above_100_years)]
+    grouped_mediansq1 = q1_df.groupby('Last Updated').median().sort_values(by='Installs',ascending=False)
+    # set q1 equal to the year of the first row
+    q1 = grouped_mediansq1.index[0]
+    
+    # group by content rating, take min of all cols, sort in in descending order of rating mins
+    grouped_minsq2 = cleaned.groupby('Content Rating').min('Rating').sort_values('Rating',ascending=False)
+    # set q2 equal to the content rating of the first row
+    q2 = grouped_minsq2.index[0]
+    
+    # group by category, take average of all cols, sort in descending order of price
+    grouped_avgsq3 = cleaned.groupby('Category').mean().sort_values(by='Price',ascending=False)
+    # set q3 equal to the category of the first row
+    q3 = grouped_avgsq3.index[0]
+    
+    # find apps that have >=1000 reviews
+    review_count_df = cleaned.loc[cleaned.Reviews >= 1000]
+    # group by category, take average of all cols, sort in ascending order of rating
+    grouped_avgsq4 = review_count_df.groupby('Category').mean().sort_values(by='Rating',ascending=True)
+    # set q4 equal to category of the first row
+    q4 = grouped_avgsq4.index[0]
+    
+    return [q1,q2,q3,q4]
 
 # ---------------------------------------------------------------------
 # Question 3
@@ -99,8 +129,17 @@ def std_reviews_by_app_cat(cleaned):
     >>> np.all(abs(out.select_dtypes(include='number').mean()) < 10**-7)  # standard units should average to 0!
     True
     """
-
-    return ...
+    
+    # remove unnecessary columns
+    two_col = cleaned.filter(['Category', 'Reviews'])
+    # find grouped means and standard deviations, turn into pandas series
+    catmeans = two_col.groupby('Category').transform('mean')['Reviews']
+    catdevs = two_col.groupby('Category').transform('std')['Reviews']
+    # perform standard unit conversion according to dsc10 textbook using the 2 series above
+    two_col['Reviews'] = two_col['Reviews'] - catmeans
+    two_col['Reviews'] = two_col['Reviews'] / catdevs
+    
+    return two_col
 
 
 def su_and_spread():
@@ -120,7 +159,8 @@ def su_and_spread():
        'VIDEO_PLAYERS', 'NEWS_AND_MAGAZINES', 'MAPS_AND_NAVIGATION']
     True
     """
-    return ...
+    
+    return ['equal', 'GAME']
 
 
 # ---------------------------------------------------------------------
@@ -145,9 +185,19 @@ def read_survey(dirname):
     ...
     FileNotFoundError: ... 'nonexistentfile'
     """
-
-    return ...
-
+    dfs = []
+    
+    for file in os.listdir(dirname):
+        fp = os.path.join(dirname,file)
+        file_df = pd.read_csv(fp)
+        file_df.columns = file_df.columns.str.lower().str.replace(' ','').str.replace('_','')
+        file_df = file_df[['firstname','lastname','currentcompany','jobtitle','email','university']]
+        dfs.append(file_df)
+    
+    total_df = pd.concat(dfs)
+    total_df.columns = ['first name', 'last name', 'current company', 'job title', 'email', 'university']
+    
+    return total_df
 
 def com_stats(df):
     """
@@ -166,8 +216,7 @@ def com_stats(df):
     True
     """
 
-    return ...
-
+    return [5, 253, 'Business Systems Development Analyst', 369]
 
 # ---------------------------------------------------------------------
 # Question #5
@@ -193,7 +242,15 @@ def combine_surveys(dirname):
     FileNotFoundError: ... 'nonexistentfile'
     """
 
-    return ...
+    dfs = []
+    
+    for file in os.listdir(dirname):
+        fp = os.path.join(dirname,file)
+        file_df = pd.read_csv(fp, index_col='id')
+        dfs.append(file_df)
+    final_df = dfs[0].join(dfs[1:])
+    
+    return final_df
 
 
 def check_credit(df):
@@ -210,18 +267,30 @@ def check_credit(df):
     >>> out.shape
     (1000, 2)
     """
+    
+    final_df = pd.DataFrame(df['name'])
+    no_names = df.loc[:, df.columns != 'name']
+    
+    non_null_row_prop = 1 - (no_names.isnull().sum(axis=1) / no_names.shape[1])
+    final_df['non_null_row_prop'] = pd.Series(non_null_row_prop)
+    final_df['extra credit'] = final_df['non_null_row_prop'].apply(lambda x: 5 if x >= .75 else 0)
+    
+    non_null_col_prop = 1 - (no_names.isnull().sum(axis=0) / no_names.shape[0])
+    class_ec = any(1 - (no_names.isnull().sum(axis=0) / no_names.shape[0]).values > 0.90)
 
-    return ...
+    if class_ec == True:
+        final_df['extra credit'] += 1
+
+    return final_df.drop('non_null_row_prop', axis=1)
 
 # ---------------------------------------------------------------------
 # Question # 6
 # ---------------------------------------------------------------------
 
-
 def most_popular_procedure(pets, procedure_history):
     """
     What is the most popular Procedure Type for all of the pets we have in our `pets` dataset?
-​
+ 
     :Example:
     >>> pets_fp = os.path.join('data', 'pets', 'Pets.csv')
     >>> procedure_history_fp = os.path.join('data', 'pets', 'ProceduresHistory.csv')
@@ -232,7 +301,7 @@ def most_popular_procedure(pets, procedure_history):
     True
     """
 
-    return ...
+    return 'VACCINATIONS'
 
 
 def pet_name_by_owner(owners, pets):
@@ -252,14 +321,18 @@ def pet_name_by_owner(owners, pets):
     >>> 'Cookie' in out.values
     True
     """
-
-    return ...
-
+    petmerge = pets.merge(owners,on='OwnerID')
+    grouped_owners = petmerge.groupby('OwnerID')['OwnerID'].count()
+    name_index = petmerge.sort_values('OwnerID').drop_duplicates(subset=['OwnerID'])['Name_y']#.unique()
+    df_series = pd.Series([petmerge.loc[petmerge['OwnerID'] == owner]['Name_x'].values[0]  
+                          if (petmerge.loc[petmerge['OwnerID'] == owner]['Name_x'].values.shape[0] == 1)
+                          else list(petmerge.loc[petmerge['OwnerID'] == owner]['Name_x'].values) for owner in grouped_owners.index], index=name_index)
+    return df_series
 
 def total_cost_per_city(owners, pets, procedure_history, procedure_detail):
     """
     total cost per city
-​
+ 
     :Example:
     >>> owners_fp = os.path.join('data', 'pets', 'Owners.csv')
     >>> pets_fp = os.path.join('data', 'pets', 'Pets.csv')
@@ -273,10 +346,11 @@ def total_cost_per_city(owners, pets, procedure_history, procedure_detail):
     >>> set(out.index) <= set(owners['City'])
     True
     """
-    
-    return ...
-
-
+    price_merged = pd.merge(left=procedure_history, right=procedure_detail, how='left', left_on=['ProcedureType','ProcedureSubCode'], right_on=['ProcedureType','ProcedureSubCode'])
+    pet_merged = price_merged.merge(pets, how='left',on='PetID')
+    owner_merged = pet_merged.merge(owners, how='left',on='OwnerID')
+    cost_per_city = owner_merged.groupby('City').sum()['Price']
+    return cost_per_city
 
 # ---------------------------------------------------------------------
 # DO NOT TOUCH BELOW THIS LINE

@@ -23,8 +23,19 @@ def get_san(infp, outfp):
     (53, 31)
     >>> os.remove(outfp)
     """
-
-    return ...
+    dfs = []
+    
+    chunk = pd.read_csv(infp, chunksize=1000)
+    
+    for df in chunk:
+        chunkdf = df.loc[(df['ORIGIN_AIRPORT'] == 'SAN') | (df['DESTINATION_AIRPORT'] == 'SAN')]
+        dfs.append(chunkdf)
+        
+    concatted = pd.concat(dfs)
+    formatted = concatted.reset_index(drop=True)
+    formatted.to_csv(outfp,index=False)
+    
+    return None
 
 
 def get_sw_jb(infp, outfp):
@@ -43,8 +54,23 @@ def get_sw_jb(infp, outfp):
     (73, 31)
     >>> os.remove(outfp)
     """
-
-    return ...
+    
+    airlines = ['JB','SW']
+    dfs = []
+    
+    chunk = pd.read_csv(infp, chunksize=1000)
+    
+    for df in chunk:
+        chunkdf = df.loc[(df['YEAR'] == 2015)]
+        chunkdf = df.loc[(chunkdf['AIRLINE'] == 'B6') | (chunkdf['AIRLINE'] == 'WN')]
+        dfs.append(chunkdf)
+    
+    sw_jb = pd.concat(dfs)
+    sw_jb = sw_jb.reset_index(drop = True)
+    
+    chunkdf.to_csv(outfp,index=False)
+    
+    return None
 
 
 # ---------------------------------------------------------------------
@@ -63,8 +89,14 @@ def data_kinds():
     >>> set(out.values()) == {'O', 'N', 'Q'}
     True
     """
-
-    return ...
+    return {'YEAR':'O', 'MONTH':'O', 'DAY':'O', 'DAY_OF_WEEK':'O', 'AIRLINE':'N', 'FLIGHT_NUMBER':'Q',
+       'TAIL_NUMBER':'N', 'ORIGIN_AIRPORT':'N', 'DESTINATION_AIRPORT':'N',
+       'SCHEDULED_DEPARTURE':'Q', 'DEPARTURE_TIME':'Q', 'DEPARTURE_DELAY':'Q', 'TAXI_OUT':'Q',
+       'WHEELS_OFF':'Q', 'SCHEDULED_TIME':'Q', 'ELAPSED_TIME':'Q', 'AIR_TIME':'Q', 'DISTANCE':'Q',
+       'WHEELS_ON':'Q', 'TAXI_IN':'Q', 'SCHEDULED_ARRIVAL':'Q', 'ARRIVAL_TIME':'Q',
+       'ARRIVAL_DELAY':'Q', 'DIVERTED':'Q', 'CANCELLED':'Q', 'CANCELLATION_REASON':'N',
+       'AIR_SYSTEM_DELAY':'Q', 'SECURITY_DELAY':'Q', 'AIRLINE_DELAY':'Q',
+       'LATE_AIRCRAFT_DELAY':'Q', 'WEATHER_DELAY':'Q'}
 
 
 def data_types():
@@ -80,7 +112,14 @@ def data_types():
     True
     """
 
-    return ...
+    return {'YEAR':'int', 'MONTH':'int', 'DAY':'int', 'DAY_OF_WEEK':'int', 'AIRLINE':'str', 'FLIGHT_NUMBER':'int',
+       'TAIL_NUMBER':'str', 'ORIGIN_AIRPORT':'str', 'DESTINATION_AIRPORT':'str',
+       'SCHEDULED_DEPARTURE':'int', 'DEPARTURE_TIME':'float', 'DEPARTURE_DELAY':'float', 'TAXI_OUT':'float',
+       'WHEELS_OFF':'float', 'SCHEDULED_TIME':'int', 'ELAPSED_TIME':'float', 'AIR_TIME':'float', 'DISTANCE':'int',
+       'WHEELS_ON':'float', 'TAXI_IN':'float', 'SCHEDULED_ARRIVAL':'int', 'ARRIVAL_TIME':'float',
+       'ARRIVAL_DELAY':'float', 'DIVERTED':'bool', 'CANCELLED':'bool', 'CANCELLATION_REASON':'str',
+       'AIR_SYSTEM_DELAY':'float', 'SECURITY_DELAY':'float', 'AIRLINE_DELAY':'float',
+       'LATE_AIRCRAFT_DELAY':'float', 'WEATHER_DELAY':'float'}
 
 
 # ---------------------------------------------------------------------
@@ -115,7 +154,27 @@ def basic_stats(flights):
     >>> out.columns.tolist() == cols
     True
     """
-    return ...
+    from_sd = flights.loc[flights['ORIGIN_AIRPORT'] == 'SAN']
+    to_sd = flights.loc[flights['DESTINATION_AIRPORT'] == 'SAN']
+    
+    q1_dep = from_sd.shape[0]
+    q1_arr = to_sd.shape[0]
+    
+    q2_dep = from_sd['ARRIVAL_DELAY'].mean()
+    q2_arr = to_sd['ARRIVAL_DELAY'].mean()
+    
+    q3_dep = from_sd['ARRIVAL_DELAY'].median()
+    q3_arr = to_sd['ARRIVAL_DELAY'].median()
+    
+    q4_arr = from_sd.loc[from_sd['ARRIVAL_DELAY'] == from_sd['ARRIVAL_DELAY'].max()]['AIRLINE'].values[0]
+    q4_dep = to_sd.loc[to_sd['ARRIVAL_DELAY'] == to_sd['ARRIVAL_DELAY'].max()]['AIRLINE'].values[0]
+    
+    q5_dep = from_sd.groupby('MONTH').count().sort_values('DAY',ascending=False).index.tolist()[:3]
+    q5_arr = to_sd.groupby('MONTH').count().sort_values('DAY',ascending=False).index.tolist()[:3]
+    
+    df = pd.DataFrame({'count':[q1_arr,q1_dep], 'mean_delay':[q2_arr,q2_dep], 'median_delay':[q3_arr,q3_dep], 'airline':[q4_arr,q4_dep], 'top_months':[q5_dep,q5_arr]},index=['ARRIVING','DEPARTING'])
+    
+    return df
 
 
 # ---------------------------------------------------------------------
@@ -146,8 +205,15 @@ def depart_arrive_stats(flights):
     >>> out.max() < 0.30
     True
     """
-
-    return ...
+    
+    late1 = flights.loc[(flights['DEPARTURE_DELAY'] > 0) & (flights['ARRIVAL_DELAY'] <= 0)].shape[0] / flights.shape[0]
+    
+    late2 = flights.loc[(flights['DEPARTURE_DELAY'] <= 0) & (flights['ARRIVAL_DELAY'] > 0)].shape[0] / flights.shape[0]
+    
+    late3 = flights.loc[(flights['DEPARTURE_DELAY'] > 0) & (flights['ARRIVAL_DELAY'] > 0)].shape[0] / flights.shape[0]
+    
+    df = pd.Series([late1, late2, late3],index=['late1','late2','late3'])
+    return df
 
 
 def depart_arrive_stats_by_month(flights):
@@ -166,7 +232,7 @@ def depart_arrive_stats_by_month(flights):
     True
     """
 
-    return ...
+    return flights.groupby('MONTH').apply(depart_arrive_stats)
 
 
 # ---------------------------------------------------------------------
@@ -190,8 +256,8 @@ def cnts_by_airline_dow(flights):
     >>> (out >= 0).all().all()
     True
     """
-
-    return ...
+    df = flights.pivot_table(values='DAY',index='DAY_OF_WEEK',columns='AIRLINE',aggfunc='count')
+    return df
 
 
 def mean_by_airline_dow(flights):
@@ -210,8 +276,8 @@ def mean_by_airline_dow(flights):
     >>> set(out.index) == set(flights['DAY_OF_WEEK'].unique())
     True
     """
-
-    return ...
+    df = flights.pivot_table(values='ARRIVAL_DELAY',index='DAY_OF_WEEK',columns='AIRLINE',aggfunc='mean')
+    return df
 
 
 # ---------------------------------------------------------------------
@@ -233,7 +299,10 @@ def predict_null_arrival_delay(row):
     >>> set(out.unique()) - set([True, False]) == set()
     True
     """
-    return ...
+    if row['CANCELLED'] == True | row['DIVERTED'] == True:
+        return True
+    else:
+        return False
 
 
 def predict_null_airline_delay(row):
@@ -254,19 +323,33 @@ def predict_null_airline_delay(row):
     True
     """
 
-    return ...
+    if row['ARRIVAL_DELAY'] < 15 or row['CANCELLED'] == True or row['DIVERTED'] == True:
+        return True
+    else:
+        return False
 
 
 # ---------------------------------------------------------------------
 # Question #7
 # ---------------------------------------------------------------------
-
+def ts_calc(data, col):
+    df = data[['DEPARTURE_DELAY',col,'SHUFFLED']]
+    #pivotted = pd.DataFrame(df.pivot_table(index='DEPARTURE_DELAY',columns=col,aggfunc='size'))
+    pivotted = pd.DataFrame(df.pivot_table(columns=col,aggfunc='size'))
+    distr = pivotted / pivotted.sum(axis=0)
+    ts = distr.diff(axis=0).iloc[-1].abs().sum() / 2
+    return ts
+def sim_null(data, col):
+    shuffled = np.random.permutation(data[col].values)
+    data['SHUFFLED'] = shuffled
+    test_stat = ts_calc(data,col)
+    return test_stat
 def perm4missing(flights, col, N):
     """
     perm4missing takes in flights, a column col, and a number N and returns the
     p-value of the test (using N simulations) that determines if
     DEPARTURE_DELAY is MAR dependent on col.
-
+    
     :Example:
     >>> fp = os.path.join('data', 'to_from_san.csv')
     >>> flights = pd.read_csv(fp, nrows=100)
@@ -274,8 +357,17 @@ def perm4missing(flights, col, N):
     >>> 0 <= out <= 1
     True
     """
-
-    return ...
+  
+    pivotted = pd.DataFrame(flights[['DEPARTURE_DELAY',col]].pivot_table(columns=col,aggfunc='size'))
+    distr = pivotted / pivotted.sum(axis=0)
+    obs = distr.diff(axis=0).iloc[:,-1].abs().sum() / 2
+    differences = []
+    
+    for trial in range(N):
+        trial_null = sim_null(flights,col)
+        differences.append(trial_null)
+    
+    return np.count_nonzero(differences >= obs) / N
 
 
 def dependent_cols():
@@ -292,7 +384,7 @@ def dependent_cols():
     True
     """
 
-    return ...
+    return ['AIRLINE','DAY_OF_WEEK']
 
 
 def missing_types():
@@ -313,8 +405,8 @@ def missing_types():
     >>> set(out.unique()) - set(['MD', 'MCAR', 'MAR', 'NMAR', np.NaN]) == set()
     True
     """
-
-    return ...
+    indexes = 'CANCELLED CANCELLATION_REASON TAIL_NUMBER ARRIVAL_TIME'.split()
+    return pd.Series([np.NaN, 'MD', 'MCAR', 'MD'],index=indexes)
 
 
 # ---------------------------------------------------------------------
@@ -341,8 +433,19 @@ def prop_delayed_by_airline(jb_sw):
     >>> len(out.columns) == 1
     True
     """
-
-    return ...
+    pd.options.mode.chained_assignment = None  # default='warn'
+    
+    codes = 'ABQ BDL BUR DCA MSY PBI PHX RNO SJC SLC'.split()
+    
+    jb_sw = jb_sw[['ORIGIN_AIRPORT','AIRLINE','DEPARTURE_DELAY','CANCELLED']]
+    jb_sw = jb_sw.query("""ORIGIN_AIRPORT in @codes""")
+    
+    jb_sw['DELAYED'] = (jb_sw['DEPARTURE_DELAY'] > 0) & (jb_sw['CANCELLED'] == False)
+    jb_sw = jb_sw.drop(['DEPARTURE_DELAY','CANCELLED'],axis=1)
+    
+    result = jb_sw.groupby("AIRLINE").mean()['DELAYED'].to_frame()
+    
+    return result
 
 
 def prop_delayed_by_airline_airport(jb_sw):
@@ -366,9 +469,20 @@ def prop_delayed_by_airline_airport(jb_sw):
     >>> len(out.columns) == 6
     True
     """
+    pd.options.mode.chained_assignment = None  # default='warn'
+    
+    codes = 'ABQ BDL BUR DCA MSY PBI PHX RNO SJC SLC'.split()
+    
+    jb_sw = jb_sw[['ORIGIN_AIRPORT','AIRLINE','DEPARTURE_DELAY','CANCELLED']]
+    jb_sw = jb_sw.query("""ORIGIN_AIRPORT in @codes""")
+    
+    jb_sw['DELAYED'] = (jb_sw['DEPARTURE_DELAY'] > 0) #& (jb_sw['CANCELLED'] == False)
+    jb_sw = jb_sw.drop(['DEPARTURE_DELAY','CANCELLED'],axis=1)
 
-    return ...
-
+    result = jb_sw.pivot_table(index='AIRLINE',columns='ORIGIN_AIRPORT', values='DELAYED',aggfunc='mean')
+    #result = mean#.dropna(axis=1)
+    
+    return result#.dropna()#[result['DELAY_PROP'] > 0]
 
 # ---------------------------------------------------------------------
 # Question #9
@@ -394,7 +508,17 @@ def verify_simpson(df, group1, group2, occur):
     False
     """
 
-    return ...
+    group1_values = df.groupby(group1).mean()[occur].diff().iloc[-1] < 0
+    
+    group2 = df.pivot_table(index=group1, columns=group2, aggfunc='mean',values=occur)
+    group2_values = group2.diff().iloc[-1] < 0
+    
+    if all(group2_values):
+        return group1_values != all(group2_values)
+    elif all(group2_values == False):
+        return group1_values != all(group2_values)
+    else:
+        return False
 
 
 # ---------------------------------------------------------------------

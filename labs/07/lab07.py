@@ -10,14 +10,9 @@ import re
 # ---------------------------------------------------------------------
 # Question # 1
 # ---------------------------------------------------------------------
-
-
 ####################
 #  Regex
 ####################
-
-
-
 # ---------------------------------------------------------------------
 # Problem 1
 # ---------------------------------------------------------------------
@@ -40,13 +35,11 @@ def match_1(string):
     True
     """
     #Your Code Here
-    pattern = ...
+    pattern = '^..\[(.+)(.+)\]'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
 
 def match_2(string):
     """
@@ -72,14 +65,11 @@ def match_2(string):
     False
     """
     #Your Code Here
-    pattern = ...
+    pattern = '^\([8][5][8]\) [0-9]{3}-[0-9]{4}$'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
-
 
 def match_3(string):
     """
@@ -106,12 +96,11 @@ def match_3(string):
     """
     #Your Code Here
 
-    pattern = ...
+    pattern = '^[a-zA-Z\s\?]{5,9}\?$'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_4(string):
     """
@@ -142,12 +131,11 @@ def match_4(string):
     False
     """
     #Your Code Here
-    pattern = ...
+    pattern = r'\$[^abc]*\$+([Aa]+[Bb]+[Cc])]*'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_5(string):
     """
@@ -165,12 +153,11 @@ def match_5(string):
     """
 
     #Your Code Here
-    pattern = ...
+    pattern = '^[\w\_]+\.py'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_6(string):
     """
@@ -186,15 +173,12 @@ def match_6(string):
     >>> match_6("ABCDEF_ABCD")
     False
     """
-
     #Your Code Here
-    pattern = ...
+    pattern = '^[a-z]*_[a-z]*$'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
 
 def match_7(string):
     """
@@ -209,14 +193,11 @@ def match_7(string):
     False
     """
 
-    pattern = ...
+    pattern = '^_.*_$'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
-
 
 def match_8(string):
     """
@@ -239,13 +220,11 @@ def match_8(string):
     True
     """
 
-    pattern = ...
+    pattern = '^((?!O)(?!i)(?!1).)*$'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
 
 def match_9(string):
     '''
@@ -259,13 +238,11 @@ def match_9(string):
     True
     '''
 
-
-    pattern = ...
+    pattern = '^[A-Z]{2}-[0-9]{2}-(NYC|LAX|SAN)-[0-9]{4}$'
 
     #Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_10(string):
     '''
@@ -287,11 +264,10 @@ def match_10(string):
     ['def']
 
     '''
-
-    return ...
-
-
-
+    s = re.sub(r'[Aa].{2}', '', string.lower())
+    s = re.sub(r'[\s|.!?\\-]','',s)
+    chunks = re.findall(r'.{1,3}',s)
+    return chunks
 # ---------------------------------------------------------------------
 # Question # 2
 # ---------------------------------------------------------------------
@@ -311,8 +287,19 @@ def extract_personal(s):
     >>> addresses[0] == '530 High Street'
     True
     """
-
-    return ...
+    email_pattern = '[\w]*@[^.]+\.[a-z]{3}'
+    emails = re.findall(email_pattern,s)
+    
+    ssns_pattern = '[0-9]{3}-[]0-9]{2}-[0-9]{4}'
+    ssns = re.findall(ssns_pattern,s)
+    
+    btc_pattern = '(?<=bitcoin:)\w*'
+    bcs = re.findall(btc_pattern,s)
+    
+    address_pattern = '[0-9]+ [A-Za-z]+ [A-Za-z]+'
+    addresses = re.findall(address_pattern,s)
+    
+    return emails,ssns,bcs,addresses
 
 # ---------------------------------------------------------------------
 # Question # 3
@@ -330,7 +317,23 @@ def tfidf_data(review, reviews):
     >>> 'before' in out.index
     True
     """
-    return ...
+    w_dict = {}
+    split = review.split()
+    for w in split:
+        if w in w_dict.keys():
+            w_dict[w] += 1
+        else:
+            w_dict[w] = 1
+    df = pd.DataFrame.from_dict(w_dict,columns=['cnt'],orient='index')
+    
+    keys = list(w_dict.keys())
+    vals = list(w_dict.values())
+    
+    df = df.assign(tf = np.array(vals) / sum(w_dict.values()))
+    df = df.assign(idf = [np.log(len(reviews) / reviews.str.contains(w).sum()) for w in keys])
+    df = df.assign(tfidf = df['tf'] * df['idf'])
+    
+    return df
 
 
 def relevant_word(out):
@@ -343,13 +346,16 @@ def relevant_word(out):
     >>> relevant_word(out) in out.index
     True
     """
-    return ...
+
+    return out.sort_values('tfidf',ascending=False).index[0]
 
 
 # ---------------------------------------------------------------------
 # Question # 4
 # ---------------------------------------------------------------------
-
+def ht_grabber(row):
+    hashtags = re.findall('(?<=#)+?([^\s]+)',row)
+    return hashtags
 def hashtag_list(tweet_text):
     """
     :Example:
@@ -359,9 +365,8 @@ def hashtag_list(tweet_text):
     >>> (out.iloc[0] == ['NLP', 'NLP1', 'NLP1'])
     True
     """
-
-    return ...
-
+    
+    return tweet_text.apply(ht_grabber)
 
 def most_common_hashtag(tweet_lists):
     """
@@ -370,16 +375,54 @@ def most_common_hashtag(tweet_lists):
     >>> test = hashtag_list(pd.DataFrame(testdata, columns=['text'])['text'])
     >>> most_common_hashtag(test).iloc[0]
     'NLP1'
-    """
-
-    return ...
+    """  
+    hashtags = [tag for ht in tweet_lists for tag in ht]
+    hashtags = pd.Series(hashtags)
+    hashtags = hashtags.value_counts()
+    def assign_helper(data):
+        if len(data) == 0:
+            return np.NaN
+        elif len(data) == 1:
+            return data[0]
+        else:
+            return hashtags.loc[data].idxmax()
+    
+    return tweet_lists.apply(assign_helper)
 
 
 # ---------------------------------------------------------------------
 # Question # 5
 # ---------------------------------------------------------------------
 
-
+def ht_cnt(row):
+    hashtags = re.findall('(?<=#)+?([^\s])',row)
+    return len(hashtags)
+def mc_ht(row):
+    ht = re.findall('(?<=#)+?([^\s]+)',row)
+    data = pd.Series(ht)
+    if len(data) == 0:
+        return np.NaN
+    elif len(data.unique()) == 1:
+        return data[0]
+    else:
+        return data.value_counts().index[0]
+def tag_cnt(row):
+    tags = re.findall('(?<=@)+?([^\s]+)',row)
+    return len(tags)
+def link_cnt(row):
+    tags = re.findall('http(s)?://[^\s]+',row)
+    return len(tags)
+def rt_helper(row):
+    prog = re.compile('^RT')
+    return prog.search(row) is not None
+def cleaner(row):
+    s = re.sub('http(s)?://[^\s]+', '', row)
+    s = re.sub('@+?([^\s]+)', '', s)
+    s = re.sub('#+?([^\s]+)', '', s)
+    s = re.sub('^RT', '', s)
+    s = re.sub(r'[^\w\s]', ' ', s)
+    s = s.lower().strip()
+    return s
 def create_features(ira):
     """
     :Example:
@@ -392,8 +435,18 @@ def create_features(ira):
     >>> (out == ans).all().all()
     True
     """
-
-    return ...
+    
+    num_hashtags = ira['text'].apply(ht_cnt)
+    mc_hashtags = ira['text'].apply(mc_ht)
+    num_tags = ira['text'].apply(tag_cnt)
+    num_links = ira['text'].apply(link_cnt)
+    is_retweet = ira['text'].apply(rt_helper)
+    text = ira['text'].apply(cleaner)
+    
+    df_dict = {'text':text, 'num_hashtags':num_hashtags, 'mc_hashtags':mc_hashtags, 'num_tags':num_tags, 'num_links':num_links, 'is_retweet':is_retweet}
+    df = pd.DataFrame(df_dict)
+    
+    return df
 
 # ---------------------------------------------------------------------
 # DO NOT TOUCH BELOW THIS LINE

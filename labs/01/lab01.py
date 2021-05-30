@@ -52,8 +52,16 @@ def median_vs_average(nums):
     >>> median_vs_average([1, 2, 3, 4])
     True
     """
-    
-    return ...
+    nums.sort()
+    mean = sum(nums) / len(nums)
+    half = len(nums) // 2
+
+    if len(nums) % 2 == 1:
+        median = nums[half]
+    else:
+        median = (nums[half-1] + nums[half]) / 2
+        
+    return median >= mean
 
 # ---------------------------------------------------------------------
 # Question # 2
@@ -72,9 +80,18 @@ def same_diff_ints(ints):
     >>> same_diff_ints([1,3,5,7,9])
     False
     """
-
-    return ...
-
+    if len(ints) == 0:
+        return False
+    
+    for i in range(1, len(ints)):
+        for j in range(len(ints)):
+            if i+j >= len(ints):
+                break
+            else:
+                if abs(i-j) == abs(ints[i]-ints[j]):
+                    return True
+   
+    return False
 # ---------------------------------------------------------------------
 # Question # 3
 # ---------------------------------------------------------------------
@@ -96,9 +113,15 @@ def n_prefixes(s, n):
     >>> n_prefixes('aaron', 2)
     'aaa'
     """
-
-    return ...
-
+    return_str = ''
+    
+    if len(s) == 0:
+        return
+    
+    while n > 0:
+        return_str += s[:n]
+        n -= 1
+    return return_str
 # ---------------------------------------------------------------------
 # Question # 4
 # ---------------------------------------------------------------------
@@ -118,9 +141,17 @@ def exploded_numbers(ints, n):
     >>> exploded_numbers([3, 8, 15], 2)
     ['01 02 03 04 05', '06 07 08 09 10', '13 14 15 16 17']
     """
+    new_list = [x + n for x in ints]  # create list where n is added to all elements of ints
+    fillcount = len(str(max(new_list)))  # find maximum digit count of list for zfill
 
-    return ...
+    explode_lst = []
+    for x in ints:
+        seq_str = ''
+        for y in range(x - n, x + n + 1):
+            seq_str += str(y).zfill(fillcount) + ' '
+        explode_lst.append(seq_str[:-1])
 
+    return explode_lst
 # ---------------------------------------------------------------------
 # Question # 5
 # ---------------------------------------------------------------------
@@ -136,8 +167,13 @@ def last_chars(fh):
     >>> last_chars(open(fp))
     'hrg'
     """
-
-    return ...
+    read_data = fh.readlines()
+    return_str = ''
+    for line in read_data:
+        if len(line.strip('\n')) > 0:
+            return_str += line.strip('\n')[-1]
+    fh.close()
+    return return_str
 
 # ---------------------------------------------------------------------
 # Question # 6
@@ -158,8 +194,8 @@ def arr_1(A):
     >>> np.all(out >= A)
     True
     """
-
-    return ...
+    sqrt_indices = np.sqrt(np.arange(len(A)))
+    return A + sqrt_indices
 
 def arr_2(A):
     """
@@ -176,8 +212,8 @@ def arr_2(A):
     >>> out.dtype == np.dtype('bool')
     True
     """
-
-    return ...
+    sqrts = np.sqrt(A)
+    return sqrts % 1 == 0
 
 def arr_3(A):
     """
@@ -198,7 +234,7 @@ def arr_3(A):
     True
     """
 
-    return ...
+    return np.round(np.diff(A)/np.delete(A, A.size-1),2)
 
 def arr_4(A):
     """
@@ -218,7 +254,10 @@ def arr_4(A):
     True
     """
 
-    return ...
+    daily_rem = 20 % A
+    cumsum = np.cumsum(daily_rem)
+    bool_list = list(cumsum > A)
+    return bool_list.index(next(filter(lambda i: i != 0, bool_list)))
 
 # ---------------------------------------------------------------------
 # Question # 7
@@ -240,8 +279,52 @@ def salary_stats(salary):
     >>> isinstance(out.loc['duplicates'], bool)
     True
     """
-
-    return ...
+    try:
+        NumPlayers = len(salary.index)
+    except:
+        print('an exception has occurred with NumPlayers')
+    try:
+        NumTeams = len(pd.unique(salary['Team']))
+    except:
+        print('an exception has occurred with NumTeams')
+        
+    try:
+        TotalSalary = salary['Salary'].sum()
+    except:
+        print('an exception has occurred with TotalSalary')
+    
+    try:
+        HighestSalaryAmount = salary['Salary'].max()
+        HighestSalary = salary.loc[(salary.Salary == HighestSalaryAmount)]['Player'].item()
+    except:
+        print('an exception has occurred with HighestSalary')
+    
+    try:
+        AvgBos = round(salary.loc[(salary.Team == "BOS")].Salary.mean(), 2)
+    except:
+        print('an exception has occurred with AvgBos')
+        
+    try:
+        ThirdLowest = salary.sort_values(ascending=True,by='Salary').iloc[2]['Player'] + ', ' + salary.sort_values(ascending=True,by='Salary').iloc[2]['Team']
+    except:
+        print('an exception has occurred with ThirdLowest')
+        
+    try:
+        last_names = []
+        for i in range(len(salary['Player'])):
+            last_names.append(salary['Player'].iloc[i].split(' ')[1])
+        Duplicates = len(salary['Player']) == len(last_names)
+    except:
+        print('an exception has occurred with Duplicates')
+    
+    try:
+        highest_team = salary.sort_values(ascending=False,by='Salary').loc[salary.Player =='Stephen Curry'].iloc[0]['Team']
+        TotalHighest = salary.loc[(salary.Team == "GSW")]['Salary'].sum()
+    except:
+        print('an exception has occurred with TotalHighest')
+    
+    output = {'num_players':NumPlayers, 'num_teams':NumTeams, 'total_salary':TotalSalary, 'highest_salary':HighestSalary, 'avg_bos':AvgBos, 'third_lowest':ThirdLowest, 'duplicates':Duplicates, 'total_highest':TotalHighest}
+    return pd.Series(output)
     
 
 # ---------------------------------------------------------------------
@@ -275,8 +358,21 @@ def parse_malformed(fp):
     >>> (dg == df.iloc[9:13]).all().all()
     True
     """
-
-    return ...
+    data = []
+    with open(fp, 'r') as file:
+        variables = file.readline().strip().split(',')
+        
+        for line in file:
+            messy = line.replace(',', ' ').split()
+            messy[0] = str(messy[0].replace('\"', ''))
+            messy[1] = str(messy[1].replace('\"', ''))
+            messy[2] = float(messy[2].replace('\"', ''))
+            messy[3] = float(messy[3].replace('\"', ''))
+            messy[4] = str(messy[4].replace('\"', '') + ',' + messy[5].replace('\"',''))
+            
+            messy.remove(messy[5])
+            data.append(messy)
+    return pd.DataFrame(data, columns = variables)
 
 
 # ---------------------------------------------------------------------

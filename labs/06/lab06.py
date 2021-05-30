@@ -4,6 +4,8 @@ import numpy as np
 import requests
 import bs4
 import json
+from bs4 import BeautifulSoup
+import datetime
 
 
 # ---------------------------------------------------------------------
@@ -43,7 +45,13 @@ def extract_book_links(text):
     >>> out[1] == url
     True
     """
-    return ...
+    ratings = ['four','five']
+    urls = []
+    books = bs4.BeautifulSoup(text,features="lxml").find_all('article',attrs={'class':'product_pod'})
+    for book in books:
+        if (book.find('p').attrs['class'][1].lower() in ratings) and (float(book.find('p',attrs={'class':'price_color'}).text.strip('£').strip('Â').strip('£')) < 50):
+            urls.append(book.find('a').attrs['href'].replace('catalogue/',''))
+    return urls
 
 
 def get_product_info(text, categories):
@@ -58,7 +66,30 @@ def get_product_info(text, categories):
     >>> out['Rating']
     'Two'
     """
-    return ...
+    
+    book = bs4.BeautifulSoup(text,features="lxml")
+    cat = book.find('ul',attrs={'class':'breadcrumb'}).find_all('a')[2].text
+    
+    if cat not in categories:
+        return None
+    else:
+        table_entries = book.find('table',attrs={'class':'table table-striped'}).find_all('tr')
+        entries = []
+        for x in table_entries:
+            cut1 = str(x).find('<td>') + 4
+            cut2= str(x).find('</td>')
+            entries.append(str(x)[cut1:cut2])
+        
+        description = book.find('article', attrs={'class':'product_page'}).find_all('p')[3].text
+
+        main = book.find('div', attrs={'class':'col-sm-6 product_main'})
+        title = main.find('h1').text
+        rating = main.find_all('p')[2].attrs['class'][1]
+        
+        df_dict = {'Availability':entries[5], 'Category':cat, 'Description':description, 
+                   'Number of reviews':entries[6], 'Price (excl. tax)':entries[2], 'Price (incl. tax)':entries[3],
+                   'Product Type':entries[1], 'Rating':rating, 'Tax':entries[4], 'Title':title, 'UPC':entries[0]}
+    return df_dict
 
 
 def scrape_books(k, categories):
@@ -76,7 +107,21 @@ def scrape_books(k, categories):
     >>> out['Title'][0] == 'Sharp Objects'
     True
     """
-    return ...
+    pages = []
+    df = pd.DataFrame()
+    for i in range (1,k+1):
+        pages.append('http://books.toscrape.com/catalogue/page-{}.html'.format(i))
+    for fp in pages:
+        page = requests.get(fp).text
+        books = extract_book_links(page)
+        for book in books:
+            link = 'http://books.toscrape.com/catalogue/' + book
+            book_page = requests.get(link).text
+            book_dict = get_product_info(book_page,categories)
+            if book_dict is not None:
+                book_df = pd.DataFrame([book_dict])
+                df = df.append(book_df)
+    return df.reindex(sorted(df.columns),axis=1)
 
 
 # ---------------------------------------------------------------------
@@ -94,7 +139,12 @@ def stock_history(ticker, year, month):
     >>> history.label.iloc[-1]
     'June 03, 19'
     """
-    return ...
+    date_range = pd.date_range(start = f'{str(year)}-{str(month)}', end = f'{str(year)}-{str(int(month) + 1)}')[:-1]
+    key = 'fe8f70fbc0359ff10974537662eb687f'
+    stock_endpoint = f'https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?from={date_range[0].strftime("%Y-%m-%d")}-1&to={date_range[-1].strftime("%Y-%m-%d")}&apikey={key}'
+    response = requests.get(stock_endpoint).json()
+    stock_info = response['historical']
+    return pd.DataFrame(stock_info)
 
 
 def stock_stats(history):
@@ -111,13 +161,41 @@ def stock_stats(history):
     >>> float(stats[1][:-1]) > 1
     True
     """
-    return ...
-
+    df = history.sort_values('date')
+    
+    pc = (df.iloc[-1]['close'] - df.iloc[0]['open']) / df.iloc[0]['open'] * 100
+    if pc > 0:
+        pc = '+' + str(f"{pc:.2f}") + '%'
+    else:
+        pc = str(f"{percent:.2f}") + '%'
+    
+    ttv_series = df.apply(lambda row : (row.low + row.high) / 2 * row.volume, axis=1)
+    ttv = ttv_series.sum() / 1000000000
+    ttv = str(f"{ttv:.2f}") + 'B'
+    return pc,ttv
 
 # ---------------------------------------------------------------------
 # Question # 4
 # ---------------------------------------------------------------------
-
+def kids_dfs(comment_id,cols):
+    link = "https://hacker-news.firebaseio.com/v0/item/{}.json".format(comment_id)
+    load = requests.get(link).json()
+    link_series = pd.Series(load)
+    
+    if 'kids' in link_series.index:
+        kids = list(link_series['kids'])
+        #recurse = [kids_dfs(kid,cols) for kid in kids]
+        if 'dead' in link_series.index:
+            return pd.concat([kids_dfs(kid,cols) for kid in kids], ignore_index=True)
+        else:
+            link_df = [pd.DataFrame([link_series[cols]])] + [kids_dfs(kid,cols) for kid in kids]
+            return pd.concat(link_df, ignore_index=True)
+    else:
+        if 'dead' in link_series.index:
+            return pd.DataFrame(columns=cols)
+        else:
+            return pd.DataFrame([link_series[cols]])
+        
 def get_comments(storyid):
     """
     Returns a dataframe of all the comments below a news story
@@ -129,7 +207,22 @@ def get_comments(storyid):
     >>> out.loc[5, 'time'].day
     31
     """
-    return ...
+    story_endpoint = "https://hacker-news.firebaseio.com/v0/item/{}.json".format(storyid)
+    load = requests.get(story_endpoint).json()
+    story_df = pd.DataFrame(load)
+    
+    cols = ['id','by','parent','text','time']
+    comment_df = pd.DataFrame(columns=cols)
+
+    for comment_id in story_df['kids']:
+        #comment_endpoint = "https://hacker-news.firebaseio.com/v0/item/{}.json".format(comment_id)
+        comments = kids_dfs(comment_id,cols)
+        comment_df = pd.concat([comment_df,comments],ignore_index=True)
+    
+    comment_df['time'] = pd.to_datetime(comment_df['time'], unit='s')
+    comment_df = comment_df.astype({'id':'int','parent':'int'})
+    
+    return comment_df
 
 
 # ---------------------------------------------------------------------

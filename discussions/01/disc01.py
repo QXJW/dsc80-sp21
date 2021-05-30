@@ -19,9 +19,12 @@ def data2array(filepath):
     >>> arr.shape[0]
     100000
     """
+    fh = open(filepath)
+    fh.readline()
 
-    return ...
+    data = [float(line.strip()) for line in fh]
 
+    return np.array(data)
 
 def ends_in_9(arr):
     """
@@ -35,5 +38,5 @@ def ends_in_9(arr):
     >>> 0 <= out <= 1
     True
     """
-
-    return ...
+    rounded = np.round(arr * 100)
+    return np.count_nonzero(rounded % 100 % 10 == 9) / len(rounded)

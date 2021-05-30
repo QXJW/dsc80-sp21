@@ -19,7 +19,7 @@ def question01(data, labels):
     True
     """
 
-    return ...
+    return (pd.DataFrame(data,index=labels))
 
 
 def question02(ser):
@@ -33,7 +33,6 @@ def question02(ser):
     >>> out.tolist() == [1, 2, 3]
     True
     """
-
-    return ...
+    return ser.loc[ser.apply(lambda x: x%3==0)].index
 
 

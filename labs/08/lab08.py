@@ -21,12 +21,15 @@ def best_transformation():
     # take log and square root of the dataset
     # look at the fit of the regression line (and R^2)
 
-    return ...
+    return 1
 
 # ---------------------------------------------------------------------
 # Question # 2
 # ---------------------------------------------------------------------
 
+def ord_helper(col,order):
+    enc = {y:x for (x,y) in enumerate(order)}
+    return col.replace(enc)
 
 def create_ordinal(df):
     """
@@ -42,12 +45,21 @@ def create_ordinal(df):
     >>> np.unique(out['ordinal_cut']).tolist() == [0, 1, 2, 3, 4]
     True
     """
+    cut_vals = ['Fair', 'Good', 'Very Good', 'Premium', 'Ideal']
+    cut = ord_helper(df['cut'],cut_vals)
     
-    return ...
+    clarity_vals = ['I1', 'SI2', 'SI1', 'VS2', 'VS1', 'VVS2', 'VVS1', 'IF']
+    clarity = ord_helper(df['clarity'],clarity_vals)
+    
+    color_vals = ['J', 'I', 'H', 'G', 'F', 'E', 'D']
+    color = ord_helper(df['color'],color_vals)
+    
+    return pd.DataFrame({'ordinal_cut':cut, 'ordinal_clarity':clarity, 'ordinal_color':color})
 
 # ---------------------------------------------------------------------
 # Question # 3
 # ---------------------------------------------------------------------
+
 
 
 def create_one_hot(df):
@@ -67,8 +79,17 @@ def create_one_hot(df):
     >>> out.isin([0,1]).all().all()
     True
     """
-    
-    return ...
+    def hot_helper(col):
+        cn = str(col)
+        cols = df[cn].unique()
+        one_hot = df[cn].apply(lambda x: pd.Series(x == cols, index = cols, dtype = int))
+        one_hot = one_hot.rename(lambda x: "one_hot_"+cn+"_"+str(x), axis = 1)
+        return one_hot
+    cols = ['cut', 'color', 'clarity']
+    new = pd.DataFrame()
+    for col in cols:
+        new = pd.concat([new, hot_helper(col)], axis = 1)
+    return new
 
 
 def create_proportions(df):
@@ -87,8 +108,13 @@ def create_proportions(df):
     >>> ((out >= 0) & (out <= 1)).all().all()
     True
     """
-
-    return ...
+    noms = df[['cut','clarity','color']]
+    df = pd.DataFrame()
+    for col in noms.columns:
+        colname = 'proportion_{}'.format(col)
+        vc = (noms[col].value_counts() / noms[col].shape[0]).to_dict()
+        df[colname] = noms[col].replace(vc)
+    return df
 
 # ---------------------------------------------------------------------
 # Question # 4
@@ -112,8 +138,19 @@ def create_quadratics(df):
     >>> out.shape[1] == 15
     True
     """
-        
-    return ...
+    
+    quants = df[['carat','x','y','z','depth','table']]
+    final_df = pd.DataFrame()
+    for c1 in quants.columns:
+        for c2 in quants.columns:
+            if (c1==c2):
+                continue
+            name1 = '{} * {}'.format(c1,c2)
+            name2 = '{} * {}'.format(c2,c1)
+            if (name1 in final_df.columns) or (name2 in final_df.columns):
+                continue
+            final_df[name1] = quants[c1] * quants[c2]
+    return final_df
 
 
 # ---------------------------------------------------------------------
@@ -139,7 +176,7 @@ def comparing_performance():
 
     # create a model per variable => (variable, R^2, RMSE) table
 
-    return ...
+    return [0.849, 1548.53, 'x', 'carat * x', 'ordinal_color', 0.041431655535624445]
 
 # ---------------------------------------------------------------------
 # Question # 6, 7, 8
@@ -167,8 +204,9 @@ class TransformDiamonds(object):
         >>> transformed[0, 0] == 0
         True
         """
-
-        return ...
+        bi = Binarizer(threshold = 1)
+        binarized = bi.transform(data['carat'].values.reshape(-1, 1))
+        return binarized
     
     def transform_to_quantile(self, data):
         """
@@ -187,8 +225,10 @@ class TransformDiamonds(object):
         >>> np.isclose(transformed[1,0], 0, atol=1e-06)
         True
         """
-
-        return ...
+        qt = QuantileTransformer()
+        qt.fit(self.data['carat'].values.reshape(-1, 1))
+        return qt.transform(data['carat'].values.reshape(-1,1))
+    
     
     def transform_to_depth_pct(self, data):
         """
@@ -205,8 +245,11 @@ class TransformDiamonds(object):
         >>> np.isclose(transformed[0], 61.286, atol=0.0001)
         True
         """
-
-        return ...
+        def depth_calc(x):
+            return (x[2] / ((x[0] + x[1]) / 2)) * 100
+        ft = FunctionTransformer(depth_calc)
+        x = np.array(data[['x', 'y', 'z']])
+        return ft.transform(x.T)
 
 
 # ---------------------------------------------------------------------

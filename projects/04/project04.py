@@ -30,8 +30,9 @@ def get_book(url):
     >>> book_string[:20] == '\\n\\n\\n\\n\\nProduced by Chu'
     True
     """
-    
-    return ...
+    text = requests.get(url).text
+    text = text.split('***')[2].replace('\r\n','\n')
+    return text
     
 # ---------------------------------------------------------------------
 # Question #2
@@ -63,8 +64,11 @@ def tokenize(book_string):
     >>> '(' in tokens
     True
     """
+    subbed = re.sub(r'\n\n+'," \x03 \x02 ", book_string)
+    subbed = '\x02' + subbed + '\x03'
+    tokens = re.findall('\w+|[^\w\s]+|\S+', subbed)
+    return tokens
 
-    return ...
     
 # ---------------------------------------------------------------------
 # Question #3
@@ -102,12 +106,22 @@ class UniformLM(object):
         >>> (unif.mdl == 0.25).all()
         True
         """
-
-        return ...
+        w_dict = {}
+        
+        for w in tokens:
+            if w in w_dict.keys():
+                w_dict[w] += 1
+            else:
+                w_dict[w] = 1
+        
+        keys = list(w_dict.keys())
+        
+        tf = pd.Series(1 / len(keys),index=keys)
+        return tf
     
     def probability(self, words):
         """
-        probability gives the probabiliy a sequence of words
+        probability gives the probability a sequence of words
         appears under the language model.
         :param: words: a tuple of tokens
         :returns: the probability `words` appears under the language
@@ -121,8 +135,12 @@ class UniformLM(object):
         >>> unif.probability(('one', 'two')) == 0.0625
         True
         """
-
-        return ...
+        prob = 1
+        for w in words:
+            if w not in self.mdl.keys():
+                return 0
+            prob *= self.mdl[w]
+        return prob
         
     def sample(self, M):
         """
@@ -141,8 +159,9 @@ class UniformLM(object):
         >>> np.isclose(s, 0.25, atol=0.05).all()
         True
         """
-
-        return ...
+        sample = np.random.choice(self.mdl.index, size=M, p=self.mdl.values)
+        s = ' '.join(list(sample))
+        return s
 
             
 # ---------------------------------------------------------------------
@@ -179,7 +198,19 @@ class UnigramLM(object):
         True
         """
 
-        return ...
+        w_dict = {}
+        
+        for w in tokens:
+            if w in w_dict.keys():
+                w_dict[w] += 1
+            else:
+                w_dict[w] = 1
+        
+        keys = list(w_dict.keys())
+        vals = list(w_dict.values())
+        
+        tf = pd.Series(np.array(vals) / sum(w_dict.values()),index=keys)
+        return tf
     
     def probability(self, words):
         """
@@ -198,8 +229,12 @@ class UnigramLM(object):
         >>> np.isclose(p, 0.12244897959, atol=0.0001)
         True
         """
-
-        return ...
+        prob = 1
+        for w in words:
+            if w not in self.mdl.keys():
+                return 0
+            prob *= self.mdl[w]
+        return prob
         
     def sample(self, M):
         """
@@ -218,7 +253,9 @@ class UnigramLM(object):
         True
         """
 
-        return ...
+        sample = np.random.choice(self.mdl.index, size=M, p=self.mdl.values)
+        s = ' '.join(list(sample))
+        return s
         
     
 # ---------------------------------------------------------------------
@@ -266,8 +303,13 @@ class NGramLM(object):
         >>> out[2]
         ('two', 'three')
         """
-        
-        return ...
+        ngrams = []
+        for i in range(len(tokens) - self.N+1):
+            tup = []
+            for j in range(i,i+self.N):
+                tup.append(tokens[j])
+            ngrams.append(tuple(tup))
+        return ngrams
         
     def train(self, ngrams):
         """
@@ -284,28 +326,30 @@ class NGramLM(object):
         >>> bigrams.mdl['prob'].min() == 0.5
         True
         """
-
+        
+        n1grams = [ng[:-1] for ng in ngrams]
+        
         # ngram counts C(w_1, ..., w_n)
-        ...
+        ngc = pd.Series(ngrams).value_counts(sort=False)
+        
         # n-1 gram counts C(w_1, ..., w_(n-1))
-        ...
-
+        n1gc = pd.Series(n1grams).value_counts(sort=False)
+        
         # Create the conditional probabilities
-        ...
+        p = [ngc[ng] / n1gc[ng[:-1]] for ng in ngrams]
         
         # Put it all together
-
-        ...
-
-        return ...
+        dfdict = {'ngram':ngrams, 'n1gram':n1grams, 'prob':p}
+        return pd.DataFrame(dfdict)
     
     def probability(self, words):
         """
-        probability gives the probabiliy a sequence of words
+        probability gives the probability a sequence of words
         appears under the language model.
         :param: words: a tuple of tokens
         :returns: the probability `words` appears under the language
         model.
+        
 
         :Example:
         >>> tokens = tuple('\x02 one two one three one two \x03'.split())
@@ -316,9 +360,16 @@ class NGramLM(object):
         >>> bigrams.probability('one two five'.split()) == 0
         True
         """
-
-        return ...
-
+        prob = 1
+        ngrams = self.create_ngrams(words)
+        for ngram in ngrams:
+            try:
+                prob *= self.mdl.loc[self.mdl.ngram == ngram, "prob"].values[0]
+            except:
+                return 0
+        prob *= self.prev_mdl.probability(words[: self.N - 1])
+        return prob
+            
     def sample(self, M):
         """
         sample selects tokens from the language model of length M, returning
@@ -336,13 +387,39 @@ class NGramLM(object):
         True
         """
 
-        # Use a helper function to generate sample tokens of length `length`
-        ...
-        
-        # Transform the tokens to strings
-        ...
+        def generate(ml, M, isEnd):
+            if isEnd:
+                return ['\x03'], True
+            if M == 1:
+                return ['\x02'], False
+            elif M <= self.N:
+                start, isEnd = generate(ml.prev_mdl, M-1, isEnd)
+                nmodel = ml.mdl
+                previous = nmodel[nmodel.n1gram == tuple(start)]
 
-        return ...
+                if len(previous.ngram) and not isEnd:
+                    next = np.random.choice(previous['ngram'], size = 1, p = previous['prob'])[0][-1]
+                else:
+                    next = '\x03'
+                    isEnd = True
+                start.append(next)
+                return start, isEnd
+            else:
+                start, isEnd  = generate(ml, M-1, isEnd)
+                nmodel = ml.mdl
+                ngram = tuple(start[-1 * (self.N-1):])
+                previous = nmodel[nmodel.n1gram == ngram]
+
+                if len(previous.ngram) and not isEnd:
+                    next = np.random.choice(previous['ngram'], size = 1, p = previous['prob'])[0][-1]
+                else:
+                    next = '\x03'
+                    isEnd = True
+                start.append(next)
+                return start, isEnd
+        
+        string, end = generate(self, M+1, False)
+        return " ".join(string)
 
 
 # ---------------------------------------------------------------------

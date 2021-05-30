@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
-
+from scipy.stats import ks_2samp
 
 # ---------------------------------------------------------------------
 # Question # 1
@@ -18,7 +18,8 @@ def first_round():
     >>> out[1] is "NR" or out[1] is "R"
     True
     """
-    return ...
+    
+    return [.159, 'NR']
 
 
 def second_round():
@@ -34,7 +35,7 @@ def second_round():
     >>> out[2] is "ND" or out[2] is "D"
     True
     """
-    return ...
+    return [.026, 'R', 'D']
 
 
 # ---------------------------------------------------------------------
@@ -54,8 +55,47 @@ def verify_child(heights):
     >>> out['child_5'] > out['child_50']
     True
     """
+    
+    n_repetitions = 100
+    heights = heights.copy()
+    columns = list(filter(lambda x: 'child' in x and '_' in x, heights.columns))
+    
+    pval_list = []
+    for child in columns:
+        ks_list = []
 
-    return ...
+        loop_df = heights[["father", child]]
+        loop_df = loop_df.assign(is_null = loop_df[child].isnull())
+        
+        gpA = loop_df.loc[loop_df['is_null'] == True, 'father']
+        gpB = loop_df.loc[loop_df['is_null'] == False, 'father']
+        obs = ks_2samp(gpA, gpB).statistic
+
+        for _ in range(n_repetitions):
+            # shuffle the weights
+            shuffled_father = (
+                loop_df['father']
+                .sample(replace=False, frac=1)
+                .reset_index(drop=True)
+            )
+
+            # put them in a table
+            shuffled = (loop_df
+                       .assign(**{
+                           'father': shuffled_father,
+                       }))
+
+            # compute the group differences (test statistic!)
+            grps = shuffled.groupby('is_null')['father']
+            ks = ks_2samp(grps.get_group(True), grps.get_group(False)).statistic
+            
+            # add it to the list of results
+            ks_list.append(ks)
+
+        pval = np.mean(np.array(ks_list) > obs)
+        pval_list.append(pval)
+        
+    return pd.Series(pval_list,index=columns)
 
 
 def missing_data_amounts():
@@ -67,7 +107,7 @@ def missing_data_amounts():
     True
     """
 
-    return ...
+    return [1,2,5]
 
 
 # ---------------------------------------------------------------------
@@ -91,8 +131,9 @@ def cond_single_imputation(new_heights):
     >>> (df.child.std() - out.std()) > 0.5
     True
     """
-
-    return ...
+    new_heights['quartile'] = pd.qcut(new_heights['father'],4, labels=['Q1','Q2','Q3','Q4'])
+    filled = new_heights.groupby('quartile')['child'].transform(lambda x: x.fillna(x.mean()))
+    return filled
 
 # ---------------------------------------------------------------------
 # Question # 4
@@ -116,8 +157,17 @@ def quantitative_distribution(child, N):
     >>> np.isclose(out.mean(), child.mean(), atol=1)
     True
     """
-
-    return ...
+    rand_list = []
+    
+    no_na = child.dropna()
+    counts,bins = np.histogram(no_na,bins=10)
+    density = counts / counts.sum()
+    
+    for _ in range(N):
+        rand_bin = np.random.choice(range(0,10),p=density)
+        rand_fill = np.random.uniform(bins[rand_bin],bins[rand_bin+1])
+        rand_list.append(rand_fill)
+    return pd.Series(rand_list)
 
 
 def impute_height_quant(child):
@@ -136,8 +186,13 @@ def impute_height_quant(child):
     >>> np.isclose(out.mean(), child.mean(), atol=0.5)
     True
     """
-
-    return ...
+    
+    num_null = child.isnull().sum() 
+    fill_values = quantitative_distribution(child, num_null)
+    fill_values.index = child.loc[child.isnull()].index
+    filled = child.fillna(fill_values)
+    
+    return filled
 
 
 # ---------------------------------------------------------------------
@@ -155,7 +210,7 @@ def answers():
     >>> len(list2)
     6
     """
-    return ...
+    return [1, 2, 1, 1],['soundcloud.com','qq.com','fc2.com','linkedin.com','facebook.com','instagram.com']
 
 
 

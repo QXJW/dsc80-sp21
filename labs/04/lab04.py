@@ -22,8 +22,10 @@ def latest_login(login):
     >>> result.loc[381, "Time"].hour > 12
     True
     """
-
-    return ...
+    login[['Date','Time']] = login['Time'].str.split(' ',expand=True)
+    latest = login.drop('Date',axis=1).groupby('Login Id').max()
+    latest['Time'] = pd.to_datetime(latest['Time'],format='%H:%M:%S').dt.time
+    return latest
 
 # ---------------------------------------------------------------------
 # Question # 2
@@ -44,8 +46,14 @@ def smallest_ellapsed(login):
     >>> 18 < result.loc[1233, "Time"].days < 23
     True
     """
-
-    return ...
+    pd.options.mode.chained_assignment = None
+    
+    keep_dupes = login[login.duplicated('Login Id') | login.duplicated('Login Id', keep='last')]
+    keep_dupes['Time'] = pd.to_datetime(keep_dupes['Time'])
+    keep_dupes = keep_dupes.sort_values(['Login Id','Time'],ascending=True)
+    keep_dupes['Elapsed'] = keep_dupes.groupby('Login Id')['Time'].diff()
+    return_df = keep_dupes.dropna().groupby('Login Id').min().drop('Time',axis=1).rename({'Elapsed':'Time'},axis=1)
+    return return_df
 
 
 # ---------------------------------------------------------------------
@@ -68,7 +76,7 @@ def total_seller(df):
 
     """
     
-    return ...
+    return df.pivot_table(index='Name',aggfunc='sum')
 
 
 def product_name(df):
@@ -84,7 +92,7 @@ def product_name(df):
     0
     """
     
-    return ...
+    return df.pivot_table(index='Product',columns='Name',aggfunc='sum')
 
 def count_product(df):
     """
@@ -99,7 +107,7 @@ def count_product(df):
     70
     """
     
-    return ...
+    return df.pivot_table(index=['Product','Name'],columns='Date',aggfunc='sum').fillna(0)
 
 
 def total_by_month(df):
@@ -114,8 +122,11 @@ def total_by_month(df):
     >>> out.shape[1]
     5
     """
-    
-    return ...
+    df['Date'] = pd.to_datetime(df['Date'])
+    df['Month'] = df['Date'].dt.month
+    df['Month'] = pd.to_datetime(df['Month'], format='%m').dt.month_name()
+    return_df = df.pivot_table(index=['Name','Product'],columns='Month',aggfunc='sum').fillna(0)
+    return return_df 
 
 # ---------------------------------------------------------------------
 # Question # 4
@@ -136,9 +147,9 @@ def diff_of_means(data, col='orange'):
     >>> 0 <= out
     True
     """
-    
-    return ...
-
+    df = data[['Factory',col]]
+    abs_diff = df.groupby('Factory').mean().diff().abs()[col].iloc[-1]
+    return abs_diff
 
 def simulate_null(data, col='orange'):
     """
@@ -156,8 +167,12 @@ def simulate_null(data, col='orange'):
     >>> 0 <= out <= 1.0
     True
     """
+    location = data['Factory'].values
+    shuffled_fac = np.random.permutation(location)
+    data['Factory'] = shuffled_fac
+    test_stat = diff_of_means(data,col)
     
-    return ...
+    return test_stat
 
 
 def pval_orange(data, col='orange'):
@@ -176,9 +191,15 @@ def pval_orange(data, col='orange'):
     >>> 0 <= pval <= 0.1
     True
     """
+    num_trials = 1000
+    obs = diff_of_means(data,col)
+    differences = []
     
-    return ...
-
+    for trial in range(num_trials):
+        trial_null = simulate_null(data,col)
+        differences.append(trial_null)
+    
+    return np.count_nonzero(differences >= obs) / num_trials
 
 # ---------------------------------------------------------------------
 # Question # 5
@@ -203,7 +224,7 @@ def ordered_colors():
     True
     """
 
-    return ...
+    return [('yellow',0.001), ('orange', 0.038), ('red', 0.227), ('green', 0.477), ('purple', 0.98)]
     
 
 # ---------------------------------------------------------------------
@@ -223,7 +244,7 @@ def same_color_distribution():
     True
     """
     
-    return ...
+    return (0.0,'Reject')
 
 # ---------------------------------------------------------------------
 # Question # 7
@@ -240,8 +261,8 @@ def perm_vs_hyp():
     >>> set(out) <= set(ans)
     True
     """
-
-    return ...
+    #come back to this for 3
+    return ['P','P','H','H','P']
 
 
 # ---------------------------------------------------------------------
@@ -260,7 +281,7 @@ def after_purchase():
     True
     """
 
-    return ...
+    return ['NI','MD','MAR','MCAR','MAR']
 
 # ---------------------------------------------------------------------
 # Question # 9
@@ -281,7 +302,7 @@ def multiple_choice():
     True
     """
 
-    return ...
+    return ['NI','MAR','MD','NI','MCAR']
 
 # ---------------------------------------------------------------------
 # DO NOT TOUCH BELOW THIS LINE

@@ -23,20 +23,29 @@ def data_load(scores_fp):
     False
     """
     # a
-    ...
+    df = pd.read_csv(scores_fp, header=0, usecols=['name','tries','highest_score','sex'])
 
     # b
-    ...
+    df = df.drop(['sex'],axis=1)
 
     # c
-    ...
+    df = df.rename(columns={'name':'firstname', 'tries':'attempts'})
 
     # d
-    ...
+    df = df.set_index('firstname')
 
-    return ...
+    return df
 
-
+def pass_fail_helper(row):
+    if row['attempts'] < 3 and row['highest_score'] >= 50:
+        return 'Yes'
+    elif row['attempts'] < 6 and row['highest_score'] >= 70:
+        return 'Yes'
+    elif row['attempts'] < 10 and row['highest_score'] >= 90:
+        return 'Yes'
+    else:
+        return 'No'
+    
 def pass_fail(scores):
     """
     modifies the scores dataframe by adding one more column satisfying
@@ -55,10 +64,8 @@ def pass_fail(scores):
 
     """
 
-
-    return ...
-
-
+    scores['pass'] = scores.apply(lambda row: pass_fail_helper(row), axis=1)
+    return scores
 
 def av_score(scores):
     """
@@ -75,9 +82,7 @@ def av_score(scores):
     True
     """
 
-    return ...
-
-
+    return scores[scores['pass'] == 'Yes']['highest_score'].mean()
 
 def highest_score_name(scores):
     """
@@ -93,7 +98,12 @@ def highest_score_name(scores):
     >>> len(next(iter(highest.items()))[1])
     3
     """
-    return ...
+    scores = scores.reset_index()
+    maxscore = scores['highest_score'].max()
+    top_scorers = scores[scores['highest_score'] == maxscore]
+
+    names = list(top_scorers.firstname)
+    return {maxscore:names}
 
 
 def idx_dup():
@@ -106,9 +116,8 @@ def idx_dup():
     >>> 1 <= ans <= 6
     True
     """
-    return ...
-
-
+    
+    return 6
 
 # ---------------------------------------------------------------------
 # Question # 2
@@ -122,9 +131,7 @@ def trick_me():
     >>> ans == 'A' or ans == 'B' or ans == "C"
     True
     """
-    return ...
-
-
+    return 'C'
 
 def reason_dup():
     """
@@ -134,9 +141,7 @@ def reason_dup():
     >>> ans == 'A' or ans == 'B' or ans == "C"
     True
     """
-    return ...
-
-
+    return 'B'
 
 def trick_bool():
     """
@@ -147,9 +152,8 @@ def trick_bool():
     True
     >>> isinstance(ans[1], str)
     True
-
     """
-    return ...
+    return ['D','J','M']
 
 def reason_bool():
     """
@@ -160,8 +164,7 @@ def reason_bool():
     True
 
     """
-    return ...
-
+    return 'D'
 
 # ---------------------------------------------------------------------
 # Question # 3
@@ -176,9 +179,10 @@ def change(x):
     >>> change(np.NaN) == 'MISSING'
     True
     """
-
-    return ...
-
+    if np.isnan(x) == True:
+        return "MISSING"
+    else:
+        return x
 
 def correct_replacement(nans):
     """
@@ -189,9 +193,10 @@ def correct_replacement(nans):
     >>> A = correct_replacement(nans)
     >>> (A.values == 'MISSING').sum() == 4
     True
-
     """
-    return ...
+    for col in nans.columns:
+        nans[col] = nans[col].apply(change)
+    return nans
 
 
 # ---------------------------------------------------------------------
@@ -226,9 +231,11 @@ def population_stats(df):
     >>> (out['pct_nonnull'] == 1.0).all()
     True
     """
-
-    return ...
-
+    num1 = df.count()
+    pct1 = num1 / len(df.index)
+    num2 = df.nunique() 
+    pct2 = num2 / num1
+    return pd.DataFrame({"num_nonnull":num1, "pct_nonnull":pct1, "num_distinct":num2, "pct_distinct":pct2},index=df.columns)
 
 def most_common(df, N=10):
     """
@@ -250,9 +257,18 @@ def most_common(df, N=10):
     >>> out['A_values'].isin(range(10)).all()
     True
     """
-
-    return ...
-
+    df_dict = {}
+    for col in df.columns:
+        col_df = df[col].value_counts()[:N].reset_index()
+        
+        val_format = '{}_values'.format(col)
+        val = col_df.index
+        df_dict[val_format] = val
+        
+        count_format = '{}_counts'.format(col)
+        count = col_df[col]
+        df_dict[count_format] = count
+    return pd.DataFrame(df_dict)
 
 # ---------------------------------------------------------------------
 # Question 5
@@ -267,8 +283,7 @@ def null_hypoth():
     >>> set(null_hypoth()).issubset({1,2,3,4})
     True
     """
-
-    return ...
+    return [1]
 
 
 def simulate_null():
@@ -277,8 +292,7 @@ def simulate_null():
     >>> pd.Series(simulate_null()).isin([0,1]).all()
     True
     """
-
-    return ...
+    return np.random.choice([0, 1], size=300, p=[.01, .99])
 
 
 def estimate_p_val(N):
@@ -286,8 +300,12 @@ def estimate_p_val(N):
     >>> 0 < estimate_p_val(1000) < 0.1
     True
     """
-
-    return ...
+    count = 0
+    for run in range(N):
+        sim = simulate_null()
+        if sim.tolist().count(0) >= 8:
+            count += 1
+    return count / N
 
 
 # ---------------------------------------------------------------------
@@ -314,8 +332,19 @@ def super_hero_powers(powers):
     >>> all([isinstance(x, str) for x in out])
     True
     """
-
-    return ...
+    
+    op_hero_ind = powers[powers==True].count(axis=1).nlargest(5).index[0]
+    op_hero = powers.iloc[op_hero_ind].values[0]
+    
+    m_df = powers.loc[powers.hero_names.str[0] == 'M']
+    m_most_common = m_df[m_df==True].count().nlargest(1).index[0]
+    
+    # filter for those with only 1 true then run same code as heroes whose names begins with m
+    tf_df = powers.drop('hero_names', axis=1)
+    one_power = tf_df.loc[tf_df.sum(axis=1) == 1]
+    common_one_power = one_power[one_power==True].count().nlargest(1).index[0]
+    
+    return [op_hero, m_most_common, common_one_power]
 
 # ---------------------------------------------------------------------
 # Question 7
@@ -337,8 +366,16 @@ def clean_heroes(heroes):
     >>> out['Weight'].isnull().any()
     True
     """
+    num = heroes._get_numeric_data()
+    num[num < 0] = np.NaN
+    num[num < 0] = np.NaN
+    heroes = heroes.replace('-', np.NaN)
+    
+    heroes['Hair color'] = heroes['Hair color'].replace(['Strawberry Blond', 'blond'], 'Blond') 
+    heroes['Hair color'] = heroes['Hair color'].replace('Brownn', 'Brown')
+    heroes['Hair color'] = heroes['Hair color'].replace('black', 'Black')
 
-    return ...
+    return heroes
 
 
 def super_hero_stats():
@@ -360,7 +397,7 @@ def super_hero_stats():
     True
     """
 
-    return ...
+    return ['Marvel Comics',558,'Groot','bad','Onslaught',0.2860824742268041]
 
 # ---------------------------------------------------------------------
 # Question 8
@@ -384,8 +421,10 @@ def bhbe_col(heroes):
     >>> out.sum()
     93
     """
-
-    return ...
+    cleaned = clean_heroes(heroes)
+    cleaned['newcol'] = (cleaned['Hair color'] == 'Blond') & (cleaned['Eye color'] == 'blue')
+    
+    return cleaned['newcol']
 
 
 def observed_stat(heroes):
@@ -400,8 +439,13 @@ def observed_stat(heroes):
     >>> 0.5 <= out <= 1.0
     True
     """
-
-    return ...
+    cleaned = clean_heroes(heroes)
+    cleaned['newcol'] = (cleaned['Hair color'] == 'Blond') & (cleaned['Eye color'] == 'blue')
+    
+    bhbe = cleaned.loc[cleaned.newcol == True]
+    bhbe_prop = bhbe.loc[bhbe.Alignment == 'good'].shape[0] / bhbe.shape[0]
+    
+    return bhbe_prop
 
 
 def simulate_bhbe_null(n):
@@ -423,8 +467,10 @@ def simulate_bhbe_null(n):
     >>> ((0.45 <= out) & (out <= 1)).all()
     True
     """
-
-    return ...
+    simulations = pd.DataFrame(np.random.choice([1,0],p=[.68,.32], size=(n,734)))
+    test_stats = simulations.sum(axis=1) / 734
+    
+    return test_stats
 
 
 def calc_pval():
@@ -445,8 +491,8 @@ def calc_pval():
     >>> out[1] in ['Reject', 'Fail to reject']
     True
     """
-
-    return ...
+    
+    return [0,'Reject']
 
 
 # ---------------------------------------------------------------------
